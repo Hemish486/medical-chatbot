@@ -1,0 +1,70 @@
+{% load static %}
+
+<html lang="en" translate="no" class="notranslate">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="google" content="notranslate" />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <title>Medical Chatbot</title>
+  </head>
+  <body>
+    <header>
+      <h1>VIRTUAL MEDICAL HELP ONLINE 24/7</h1>
+      <p>
+        Logged in as {{ request.user.username }} |
+        <a href="{% url 'history' %}">History</a> |
+        <a href="{% url 'logout' %}">Logout</a>
+      </p>
+    </header>
+    {% if messages %} {% for message in messages %}
+    <p style="text-align: center; font-weight: 600">{{ message }}</p>
+    {% endfor %} {% endif %} {% if not can_use_chat %}
+    <p style="text-align: center; color: #b00020; font-weight: 600">
+      Your role is <strong>{{ role }}</strong>. Chatbot access is enabled only
+      for patient/doctor accounts. {% if role == 'admin' %}
+      <a href="{% url 'history_all' %}">View all chat history</a>
+      {% endif %}
+    </p>
+    {% endif %} {% if not email_verified %}
+    <p style="text-align: center; color: #b00020; font-weight: 600">
+      Please verify your email. Chat responses are blocked until verification.
+      <a href="{% url 'resend_verification' %}">Resend verification email</a>
+    </p>
+    {% endif %}
+
+    <main>
+      {% if can_use_chat %}
+      <div class="container">
+        <div id="chat-icon">
+          <i>💬</i>
+        </div>
+
+        <div id="chat-window" style="display: none">
+          <div id="chat-messages" style="height: 300px; overflow-y: auto">
+            <div class="bot-message">
+              Hello! I’m a virtual medical chatbot. If you have any health
+              concerns or medical questions, I’d be happy to help.
+            </div>
+            <!-- Chat messages appear here -->
+          </div>
+
+          <form id="chat-form" method="post">
+            {% csrf_token %}
+            <input
+              type="text"
+              id="chat-input"
+              placeholder="Type your question..."
+              style="width: 80%"
+              name="user_input"
+            />
+            <button type="submit" style="width: 19%">Send</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{% static 'js/script.js' %}"></script>
+  </body>
+</html>

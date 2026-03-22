@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>All Chat History (Admin)</title>
+  </head>
+  <body>
+    <h2>All users chat history (admin)</h2>
+    <p>
+      <a href="{% url 'chatbot' %}">Back to chatbot</a> |
+      <a href="{% url 'logout' %}">Logout</a>
+    </p>
+    {% if history_items %}
+    <ul>
+      {% for item in history_items %}
+      <li>
+        <p>
+          <strong>{{ item.created_at }}</strong> | <strong>User:</strong> {{
+          item.user.username }} | <strong>Role:</strong> {{
+          item.user.profile.role|default:'-' }}
+        </p>
+        <p><strong>You:</strong> {{ item.user_message }}</p>
+        <p><strong>Bot:</strong> {{ item.bot_reply }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No history found.</p>
+    {% endif %}
+  </body>
+</html>

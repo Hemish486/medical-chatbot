@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Chat History</title>
+  </head>
+  <body>
+    <h2>Your chat history</h2>
+    <p>
+      <a href="{% url 'chatbot' %}">Back to chatbot</a> |
+      <a href="{% url 'logout' %}">Logout</a>
+    </p>
+    {% if history_items %}
+    <ul>
+      {% for item in history_items %}
+      <li>
+        <p>
+          <strong>{{ item.created_at }}</strong> {% if item.source %}({{
+          item.source }}){% endif %}
+        </p>
+        <p><strong>You:</strong> {{ item.user_message }}</p>
+        <p><strong>Bot:</strong> {{ item.bot_reply }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No history yet.</p>
+    {% endif %}
+  </body>
+</html>
