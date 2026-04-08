@@ -3,18 +3,23 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, User
 from django.contrib.auth.tokens import default_token_generator
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils import timezone
 from urllib.parse import urljoin
 from openai import OpenAI
+from datetime import timedelta
+import csv
+import io
 import os
+import re
 import requests
 import math
 from django.conf import settings
-from django.http import JsonResponse
 from django.core.mail import send_mail
 
 from .firebase_utils import save_chat_record
@@ -33,9 +38,15 @@ github_models_base_url = os.getenv("GITHUB_MODELS_BASE_URL", "https://models.git
 api_only_mode = os.getenv("API_ONLY_MODE", "true").strip().lower() in {"1", "true", "yes", "on"}
 CHAT_ALLOWED_ROLES = {"patient", "doctor"}
 ADMIN_ROLE = "admin"
+CHAT_HISTORY_RETENTION_DAYS = int(os.getenv("CHAT_HISTORY_RETENTION_DAYS", "90"))
+PRIVACY_NOTICE_TEXT = (
+    "This application stores chat history to help users review prior conversations. "
+    "Medical information entered here should be limited to what is needed for the support request. "
+    "Do not enter highly sensitive details unless required. The chatbot is not for emergencies or diagnosis."
+)
 
 
-def render_main_page(request, profile, role):
+def render_main_page(request, profile, role, privacy_accepted=True):
     return render(
         request,
         'main.html',
@@ -43,7 +54,42 @@ def render_main_page(request, profile, role):
             'email_verified': profile.email_verified,
             'can_use_chat': role in CHAT_ALLOWED_ROLES,
             'role': role,
+            'privacy_accepted': privacy_accepted,
+            'privacy_notice_text': PRIVACY_NOTICE_TEXT,
+            'retention_days': CHAT_HISTORY_RETENTION_DAYS,
         },
+    )
+
+
+def get_retention_cutoff():
+    if CHAT_HISTORY_RETENTION_DAYS <= 0:
+        return None
+    return timezone.now() - timedelta(days=CHAT_HISTORY_RETENTION_DAYS)
+
+
+def purge_expired_chat_history():
+    cutoff = get_retention_cutoff()
+    if cutoff is not None:
+        ChatHistory.objects.filter(created_at__lt=cutoff).delete()
+
+
+def mask_sensitive_text(text):
+    if not text:
+        return text
+
+    masked = text
+    masked = re.sub(r"[\w\.-]+@[\w\.-]+\.[A-Za-z]{2,}", "[email removed]", masked)
+    masked = re.sub(r"(?:(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{4})", "[phone removed]", masked)
+    masked = re.sub(r"\b\d{5,}\b", "[number removed]", masked)
+    return masked.strip()
+
+
+def save_minimized_chat_record(user, user_input, bot_reply, source):
+    ChatHistory.objects.create(
+        user=user,
+        user_message=mask_sensitive_text(user_input),
+        bot_reply=bot_reply,
+        source=source or "",
     )
 
 def normalize_github_base_url(url):
@@ -387,6 +433,17 @@ def send_verification_email(request, user):
     )
     return verification_url
 
+
+def privacy_notice_view(request):
+    return render(
+        request,
+        "privacy_notice.html",
+        {
+            "retention_days": CHAT_HISTORY_RETENTION_DAYS,
+            "privacy_notice_text": PRIVACY_NOTICE_TEXT,
+        },
+    )
+
 def signup_view(request):
     if request.user.is_authenticated:
         return redirect("chatbot")
@@ -446,6 +503,39 @@ def verify_email_view(request, uidb64, token):
 
 
 @login_required
+def export_chat_history_view(request):
+    cutoff = get_retention_cutoff()
+    queryset = ChatHistory.objects.filter(user=request.user)
+    if cutoff is not None:
+        queryset = queryset.filter(created_at__gte=cutoff)
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["created_at", "source", "user_message", "bot_reply"])
+    for item in queryset.order_by("-created_at"):
+        writer.writerow([
+            item.created_at.isoformat(),
+            item.source,
+            item.user_message,
+            item.bot_reply,
+        ])
+
+    response = HttpResponse(buffer.getvalue(), content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="chat_history.csv"'
+    return response
+
+
+@login_required
+def delete_chat_history_view(request):
+    if request.method != "POST":
+        return redirect("history")
+
+    ChatHistory.objects.filter(user=request.user).delete()
+    messages.success(request, "Your chat history has been deleted.")
+    return redirect("history")
+
+
+@login_required
 def resend_verification_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     if profile.email_verified:
@@ -478,8 +568,20 @@ def chat_history_view(request):
     if role not in CHAT_ALLOWED_ROLES:
         return JsonResponse({"reply": "Only patient/doctor accounts can view this page."}, status=403)
 
-    history_items = ChatHistory.objects.filter(user=request.user)[:100]
-    return render(request, "history.html", {"history_items": history_items})
+    purge_expired_chat_history()
+    cutoff = get_retention_cutoff()
+    history_items = ChatHistory.objects.filter(user=request.user)
+    if cutoff is not None:
+        history_items = history_items.filter(created_at__gte=cutoff)
+    return render(
+        request,
+        "history.html",
+        {
+            "history_items": history_items[:100],
+            "retention_days": CHAT_HISTORY_RETENTION_DAYS,
+            "privacy_notice_url": reverse("privacy_notice"),
+        },
+    )
 
 
 @login_required
@@ -488,14 +590,43 @@ def admin_chat_history_view(request):
     if role != ADMIN_ROLE:
         return JsonResponse({"reply": "Only admin can view all chat history."}, status=403)
 
-    history_items = ChatHistory.objects.select_related("user")[:200]
-    return render(request, "history_admin.html", {"history_items": history_items})
+    purge_expired_chat_history()
+    cutoff = get_retention_cutoff()
+    history_items = ChatHistory.objects.select_related("user")
+    if cutoff is not None:
+        history_items = history_items.filter(created_at__gte=cutoff)
+    return render(
+        request,
+        "history_admin.html",
+        {
+            "history_items": history_items[:200],
+            "retention_days": CHAT_HISTORY_RETENTION_DAYS,
+        },
+    )
 
 
 @login_required
 def chatbot(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     role = resolve_user_role(request.user, profile)
+    privacy_accepted = request.session.get("privacy_accepted", False)
+
+    if request.method == "POST" and request.POST.get("accept_privacy"):
+        request.session["privacy_accepted"] = True
+        messages.success(
+            request,
+            "Privacy notice accepted. You may now use the chatbot and review your data controls.",
+        )
+        return redirect("chatbot")
+
+    if not privacy_accepted:
+        if request.method == "POST":
+            return JsonResponse(
+                {"reply": "Please accept the privacy and consent notice before using the chatbot."},
+                status=403,
+            )
+        return render_main_page(request, profile, role, privacy_accepted=False)
+
     # Only patient and doctor roles are allowed to use chatbot features.
     if role not in CHAT_ALLOWED_ROLES:
         if request.method == 'POST':
@@ -619,11 +750,11 @@ def chatbot(request):
         # Save chat in DB; Firebase mirroring should not break user flow.
         guidance_response = with_dev_source_tag(guidance_response, guidance_source)
 
-        ChatHistory.objects.create(
-            user=request.user,
-            user_message=user_input,
-            bot_reply=guidance_response,
-            source=guidance_source or "",
+        save_minimized_chat_record(
+            request.user,
+            user_input,
+            guidance_response,
+            guidance_source or "",
         )
         try:
             save_chat_record(request.user, user_input, guidance_response, guidance_source or "")
@@ -637,4 +768,5 @@ def chatbot(request):
             "find doctors near me"
         )
         return JsonResponse({'reply': response_text})
-    return render_main_page(request, profile, role)
+    purge_expired_chat_history()
+    return render_main_page(request, profile, role, privacy_accepted=True)

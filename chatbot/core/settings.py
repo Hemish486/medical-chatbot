@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 from pathlib import Path
+import secrets
 import os
 from dotenv import load_dotenv
 
@@ -22,13 +23,13 @@ load_dotenv(BASE_DIR / '.env')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
+DEBUG = os.getenv('DEBUG', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-s#y#4fuy41!ok!jhglpkuxob6yde)_^==1gc(kea+1qg=gpm%8'
+# Use an environment value in production; fall back to a temporary dev secret only when needed.
+SECRET_KEY = os.getenv('SECRET_KEY') or secrets.token_urlsafe(48)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()]
 
 
 # Application definition
@@ -126,7 +127,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
@@ -134,6 +135,25 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATICFILES_DIRS= [BASE_DIR / "static"]
+
+if DEBUG:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+else:
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+csrf_trusted_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '').strip()
+if csrf_trusted_origins:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_trusted_origins.split(',') if origin.strip()]
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'chatbot'
@@ -153,6 +173,12 @@ if not EMAIL_BACKEND:
         EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     else:
         EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+if EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend' and not (EMAIL_HOST_USER and EMAIL_HOST_PASSWORD):
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+if EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend' and EMAIL_HOST_USER and DEFAULT_FROM_EMAIL.endswith('@medical-chatbot.local'):
+    DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 AXES_FAILURE_LIMIT = int(os.getenv('AXES_FAILURE_LIMIT', '5'))
 AXES_COOLOFF_TIME = int(os.getenv('AXES_COOLOFF_TIME', '1'))

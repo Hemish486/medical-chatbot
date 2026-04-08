@@ -2,29 +2,83 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260406" />
     <title>Chat History</title>
   </head>
-  <body>
-    <h2>Your chat history</h2>
-    <p>
-      <a href="{% url 'chatbot' %}">Back to chatbot</a> |
-      <a href="{% url 'logout' %}">Logout</a>
-    </p>
-    {% if history_items %}
-    <ul>
-      {% for item in history_items %}
-      <li>
+  <body class="app-body">
+    <div class="app-bg"></div>
+    <main class="history-shell">
+      <section class="history-header">
+        <div>
+          <h2>Your chat history</h2>
+          <p>Review previous medical conversations and chatbot responses.</p>
+          <p class="small-note">
+            Your history is retained for {{ retention_days }} days and can be
+            exported or deleted below.
+          </p>
+        </div>
+        <div class="history-links">
+          <a href="{% url 'chatbot' %}">Back to chatbot</a>
+          <a href="{{ privacy_notice_url }}">Privacy notice</a>
+          <a href="{% url 'logout' %}">Logout</a>
+        </div>
+      </section>
+
+      <section class="status-card policy-card">
+        <h2>Data control</h2>
         <p>
-          <strong>{{ item.created_at }}</strong> {% if item.source %}({{
-          item.source }}){% endif %}
+          Download a copy of your history or permanently remove it from your
+          account.
         </p>
-        <p><strong>You:</strong> {{ item.user_message }}</p>
-        <p><strong>Bot:</strong> {{ item.bot_reply }}</p>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p>No history yet.</p>
-    {% endif %}
+        <div class="action-row">
+          <a class="btn-secondary" href="{% url 'history_export' %}"
+            >Export CSV</a
+          >
+          <form
+            method="post"
+            action="{% url 'history_delete' %}"
+            onsubmit="
+              return confirm(
+                'Delete all of your chat history? This cannot be undone.',
+              );
+            "
+          >
+            {% csrf_token %}
+            <button type="submit" class="btn-danger">Delete my history</button>
+          </form>
+        </div>
+        <p class="small-note">
+          Only the records tied to your account are affected.
+        </p>
+      </section>
+
+      {% if history_items %}
+      <ul class="history-list">
+        {% for item in history_items %}
+        <li class="history-item">
+          <div class="history-meta">
+            <strong>{{ item.created_at }}</strong>
+            {% if item.source %} | Source: <strong>{{ item.source }}</strong>
+            {% endif %}
+          </div>
+          <div>
+            <div class="history-label">You</div>
+            <div class="history-bubble history-user">
+              {{ item.user_message }}
+            </div>
+          </div>
+          <div>
+            <div class="history-label">Bot</div>
+            <div class="history-bubble history-bot">{{ item.bot_reply }}</div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty-state">No history yet.</div>
+      {% endif %}
+    </main>
   </body>
 </html>

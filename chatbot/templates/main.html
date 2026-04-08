@@ -3,68 +3,127 @@
 <html lang="en" translate="no" class="notranslate">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google" content="notranslate" />
-    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260406" />
     <title>Medical Chatbot</title>
   </head>
-  <body>
-    <header>
-      <h1>VIRTUAL MEDICAL HELP ONLINE 24/7</h1>
-      <p>
-        Logged in as {{ request.user.username }} |
-        <a href="{% url 'history' %}">History</a> |
+  <body class="app-body">
+    <div class="app-bg"></div>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">+</span>
+        <div>
+          <h1>Virtual Medical Assistant</h1>
+          <p>24/7 health guidance and nearby care support</p>
+        </div>
+      </div>
+      <nav class="top-links">
+        <span>Logged in as <strong>{{ request.user.username }}</strong></span>
+        <a href="{% url 'privacy_notice' %}">Privacy</a>
+        <a href="{% url 'history' %}">History</a>
         <a href="{% url 'logout' %}">Logout</a>
-      </p>
+      </nav>
     </header>
-    {% if messages %} {% for message in messages %}
-    <p style="text-align: center; font-weight: 600">{{ message }}</p>
-    {% endfor %} {% endif %} {% if not can_use_chat %}
-    <p style="text-align: center; color: #b00020; font-weight: 600">
-      Your role is <strong>{{ role }}</strong>. Chatbot access is enabled only
-      for patient/doctor accounts. {% if role == 'admin' %}
-      <a href="{% url 'history_all' %}">View all chat history</a>
-      {% endif %}
-    </p>
-    {% endif %} {% if not email_verified %}
-    <p style="text-align: center; color: #b00020; font-weight: 600">
-      Please verify your email. Chat responses are blocked until verification.
-      <a href="{% url 'resend_verification' %}">Resend verification email</a>
-    </p>
-    {% endif %}
 
-    <main>
-      {% if can_use_chat %}
-      <div class="container">
-        <div id="chat-icon">
-          <i>💬</i>
+    <main class="page-shell">
+      {% if messages %} {% for message in messages %}
+      <div class="notice">{{ message }}</div>
+      {% endfor %} {% endif %} {% if not can_use_chat %}
+      <section class="status-card error">
+        <h2>Chat access restricted</h2>
+        <p>
+          Your role is <strong>{{ role }}</strong>. Chatbot access is enabled
+          only for patient/doctor accounts. {% if role == 'admin' %}
+          <a href="{% url 'history_all' %}">View all chat history</a>
+          {% endif %}
+        </p>
+      </section>
+      {% endif %} {% if not email_verified %}
+      <section class="status-card warn">
+        <h2>Email verification required</h2>
+        <p>
+          Please verify your email before sending chat requests.
+          <a href="{% url 'resend_verification' %}"
+            >Resend verification email</a
+          >
+        </p>
+      </section>
+      {% endif %}
+
+      <section class="status-card policy-card">
+        <h2>Privacy, consent, and safety notice</h2>
+        <p>{{ privacy_notice_text }}</p>
+        <p>
+          Data retention is currently set to
+          <strong>{{ retention_days }} days</strong> for chat history. You can
+          review the full notice on the privacy page.
+        </p>
+        {% if not privacy_accepted %}
+        <form method="post" class="inline-form">
+          {% csrf_token %}
+          <input type="hidden" name="accept_privacy" value="1" />
+          <button type="submit" class="btn-primary">
+            I understand and accept
+          </button>
+          <a class="text-link" href="{% url 'privacy_notice' %}"
+            >Read full privacy notice</a
+          >
+        </form>
+        {% else %}
+        <p class="small-note">Privacy consent accepted for this session.</p>
+        {% endif %}
+      </section>
+
+      {% if can_use_chat and privacy_accepted and email_verified %}
+      <section class="chat-shell" id="chat-widget">
+        <div class="chat-header">
+          <div>
+            <h2>Medical Chatbot</h2>
+            <p>
+              Ask symptoms, treatments, and nearby clinic/hospital questions.
+            </p>
+          </div>
+          <button
+            id="chat-icon"
+            class="toggle-chat"
+            type="button"
+            aria-label="Toggle chat panel"
+          >
+            💬
+          </button>
         </div>
 
-        <div id="chat-window" style="display: none">
-          <div id="chat-messages" style="height: 300px; overflow-y: auto">
+        <div id="chat-window" class="chat-window is-open">
+          <div id="chat-messages" class="chat-messages">
             <div class="bot-message">
-              Hello! I’m a virtual medical chatbot. If you have any health
-              concerns or medical questions, I’d be happy to help.
+              Hello! I’m your virtual medical assistant. Share your symptoms or
+              ask a medical question.
             </div>
-            <!-- Chat messages appear here -->
           </div>
 
-          <form id="chat-form" method="post">
+          <form id="chat-form" class="chat-form" method="post">
             {% csrf_token %}
             <input
               type="text"
               id="chat-input"
-              placeholder="Type your question..."
-              style="width: 80%"
+              placeholder="Type your medical question..."
               name="user_input"
+              autocomplete="off"
             />
-            <button type="submit" style="width: 19%">Send</button>
+            <button type="submit">Send</button>
           </form>
         </div>
-      </div>
+      </section>
+      {% elif can_use_chat and privacy_accepted and not email_verified %}
+      <section class="status-card warn">
+        <h2>Chat remains disabled until email verification is complete.</h2>
+        <p>Once verified, the chatbot input will appear here automatically.</p>
+      </section>
       {% endif %}
     </main>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="{% static 'js/script.js' %}"></script>
+    <script src="{% static 'js/script.js' %}?v=20260406"></script>
   </body>
 </html>

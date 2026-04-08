@@ -2,30 +2,52 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260406" />
     <title>All Chat History (Admin)</title>
   </head>
-  <body>
-    <h2>All users chat history (admin)</h2>
-    <p>
-      <a href="{% url 'chatbot' %}">Back to chatbot</a> |
-      <a href="{% url 'logout' %}">Logout</a>
-    </p>
-    {% if history_items %}
-    <ul>
-      {% for item in history_items %}
-      <li>
-        <p>
-          <strong>{{ item.created_at }}</strong> | <strong>User:</strong> {{
-          item.user.username }} | <strong>Role:</strong> {{
-          item.user.profile.role|default:'-' }}
-        </p>
-        <p><strong>You:</strong> {{ item.user_message }}</p>
-        <p><strong>Bot:</strong> {{ item.bot_reply }}</p>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p>No history found.</p>
-    {% endif %}
+  <body class="app-body">
+    <div class="app-bg"></div>
+    <main class="history-shell">
+      <section class="history-header">
+        <div>
+          <h2>All users chat history (Admin)</h2>
+          <p>Monitor all conversations and response sources across accounts.</p>
+        </div>
+        <div class="history-links">
+          <a href="{% url 'chatbot' %}">Back to chatbot</a>
+          <a href="{% url 'logout' %}">Logout</a>
+        </div>
+      </section>
+
+      {% if history_items %}
+      <ul class="history-list">
+        {% for item in history_items %}
+        <li class="history-item">
+          <div class="history-meta">
+            <strong>{{ item.created_at }}</strong>
+            | User: <strong>{{ item.user.username }}</strong> | Role:
+            <strong>{{ item.user.profile.role|default:'-' }}</strong> {% if
+            item.source %} | Source: <strong>{{ item.source }}</strong>
+            {% endif %}
+          </div>
+          <div>
+            <div class="history-label">User message</div>
+            <div class="history-bubble history-user">
+              {{ item.user_message }}
+            </div>
+          </div>
+          <div>
+            <div class="history-label">Bot response</div>
+            <div class="history-bubble history-bot">{{ item.bot_reply }}</div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty-state">No history found.</div>
+      {% endif %}
+    </main>
   </body>
 </html>

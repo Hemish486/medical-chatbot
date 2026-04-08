@@ -2,17 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20260406" />
     <title>Sign Up</title>
   </head>
-  <body>
-    <h2>Create account</h2>
-    {% if messages %} {% for message in messages %}
-    <p>{{ message }}</p>
-    {% endfor %} {% endif %}
-    <form method="post">
-      {% csrf_token %} {{ form.as_p }}
-      <button type="submit">Sign up</button>
-    </form>
-    <p>Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+  <body class="app-body">
+    <div class="app-bg"></div>
+    <main class="center-shell">
+      <section class="auth-card">
+        <h2>Create account</h2>
+        <p class="auth-subtitle">
+          Join the platform to access secure medical chatbot support.
+        </p>
+
+        {% if messages %} {% for message in messages %}
+        <div class="notice">{{ message }}</div>
+        {% endfor %} {% endif %} {% if form.non_field_errors %}
+        <div class="form-errors">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <form method="post" class="form-stack">
+          {% csrf_token %} {{ form.as_p }}
+          <button type="submit" class="btn-primary">Sign up</button>
+        </form>
+
+        <div class="inline-links">
+          <p>Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+        </div>
+      </section>
+    </main>
   </body>
 </html>
