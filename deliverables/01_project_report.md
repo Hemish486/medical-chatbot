@@ -45,7 +45,7 @@ The project used the following technologies:
 - **Backend language:** Python
 - **Web framework:** Django
 - **Frontend languages:** HTML, CSS, JavaScript
-- **Database:** SQLite
+- **Database:** SQLite (default configuration; MySQL optional)
 - **Version control:** Git
 - **Supporting packages:** `django-axes`, `python-dotenv`, `requests`, optional Firebase support
 
